@@ -1,0 +1,11 @@
+# Core Django
+Django>=5.2.0
+
+# Document processing
+PyPDF2>=3.0.0
+python-docx>=1.0.0
+
+# Braille translation (optional but recommended)
+# liblouis provides more accurate Grade 2 Braille translation
+# Install with: pip install python-liblouis
+# Note: May require additional system libraries on some platforms

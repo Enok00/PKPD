@@ -1,0 +1,37 @@
+{% extends 'braille_translator/base.html' %}
+
+{% block title %}{{ document.title }} - Translation{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">{{ document.title }}</h2>
+        
+        <div class="card shadow mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Original Text</h5>
+            </div>
+            <div class="card-body">
+                <pre style="white-space: pre-wrap; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">{{ document.original_text }}</pre>
+            </div>
+        </div>
+
+        <div class="card shadow mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Braille Translation</h5>
+                <a href="{% url 'download_braille' document.pk %}" class="btn btn-light btn-sm">
+                    Download Braille
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="braille-text">{{ document.braille_text }}</div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <a href="{% url 'document_detail' document.pk %}" class="btn btn-success">View Details</a>
+            <a href="{% url 'home' %}" class="btn btn-secondary">Back to Home</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
