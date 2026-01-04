@@ -34,3 +34,30 @@ class Document(models.Model):
     def get_file_extension(self):
         """Get the file extension"""
         return self.document.name.split('.')[-1].lower()
+
+
+class BrailleImage(models.Model):
+    """Model to store uploaded braille images for OCR translation"""
+    
+    title = models.CharField(max_length=255)
+    image = models.ImageField(upload_to='braille_images/')
+    uploaded_at = models.DateTimeField(default=timezone.now)
+    
+    # Extracted braille text (as braille unicode characters)
+    braille_text = models.TextField(blank=True)
+    
+    # Translated regular text
+    translated_text = models.TextField(blank=True)
+    
+    # Translation status
+    is_processed = models.BooleanField(default=False)
+    
+    # Processing notes/errors
+    processing_notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-uploaded_at']
+    
+    def __str__(self):
+        return f"{self.title} - {self.uploaded_at.strftime('%Y-%m-%d %H:%M')}"
+

@@ -1,9 +1,10 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.http import HttpResponse
-from .models import Document
-from .utils import extract_text_from_file, text_to_braille, text_to_braille_liblouis
-from .forms import DocumentUploadForm
+from .models import Document, BrailleImage
+from .utils import (extract_text_from_file, text_to_braille, text_to_braille_liblouis,
+                    translate_braille_image as process_braille_image)
+from .forms import DocumentUploadForm, BrailleImageUploadForm
 import os
 
 
@@ -104,3 +105,75 @@ def download_braille(request, pk):
     response['Content-Disposition'] = f'attachment; filename="{document.title}_braille.txt"'
     
     return response
+
+
+def braille_image_upload(request):
+    """Upload braille image page"""
+    images = BrailleImage.objects.all()
+    
+    if request.method == 'POST':
+        form = BrailleImageUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            braille_image = form.save()
+            messages.success(request, f'Image "{braille_image.title}" uploaded successfully!')
+            return redirect('translate_braille_image', pk=braille_image.pk)
+    else:
+        form = BrailleImageUploadForm()
+    
+    context = {
+        'form': form,
+        'images': images,
+    }
+    return render(request, 'braille_translator/image_upload.html', context)
+
+
+def translate_braille_image(request, pk):
+    """Process braille image and extract text"""
+    braille_image = get_object_or_404(BrailleImage, pk=pk)
+    
+    if not braille_image.is_processed:
+        # Process the braille image
+        image_path = braille_image.image.path
+        braille_text, translated_text, notes = process_braille_image(image_path)
+        
+        # Save results
+        braille_image.braille_text = braille_text
+        braille_image.translated_text = translated_text
+        braille_image.processing_notes = notes
+        braille_image.is_processed = True
+        braille_image.save()
+        
+        messages.success(request, 'Braille image processed successfully!')
+    
+    context = {
+        'braille_image': braille_image,
+    }
+    return render(request, 'braille_translator/image_translate.html', context)
+
+
+def braille_image_detail(request, pk):
+    """View braille image details"""
+    braille_image = get_object_or_404(BrailleImage, pk=pk)
+    
+    context = {
+        'braille_image': braille_image,
+    }
+    return render(request, 'braille_translator/image_translate.html', context)
+
+
+def delete_braille_image(request, pk):
+    """Delete a braille image"""
+    braille_image = get_object_or_404(BrailleImage, pk=pk)
+    
+    if request.method == 'POST':
+        # Delete the file from filesystem
+        if braille_image.image:
+            if os.path.exists(braille_image.image.path):
+                os.remove(braille_image.image.path)
+        
+        braille_image.delete()
+        messages.success(request, 'Braille image deleted successfully!')
+        return redirect('braille_image_upload')
+    
+    return render(request, 'braille_translator/delete_confirm.html', {'braille_image': braille_image})
+

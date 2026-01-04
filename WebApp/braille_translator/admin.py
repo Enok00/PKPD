@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Document
+from .models import Document, BrailleImage
 
 
 @admin.register(Document)
@@ -17,3 +17,21 @@ class DocumentAdmin(admin.ModelAdmin):
             'fields': ('original_text', 'braille_text', 'is_translated')
         }),
     )
+
+
+@admin.register(BrailleImage)
+class BrailleImageAdmin(admin.ModelAdmin):
+    list_display = ['title', 'uploaded_at', 'is_processed']
+    list_filter = ['is_processed', 'uploaded_at']
+    search_fields = ['title', 'translated_text']
+    readonly_fields = ['uploaded_at']
+    
+    fieldsets = (
+        ('Image Information', {
+            'fields': ('title', 'image', 'uploaded_at')
+        }),
+        ('OCR Results', {
+            'fields': ('braille_text', 'translated_text', 'is_processed', 'processing_notes')
+        }),
+    )
+
