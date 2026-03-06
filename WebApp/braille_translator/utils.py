@@ -3,6 +3,11 @@ Utility functions for extracting text from various document formats
 and translating to Braille
 """
 import os
+import pathlib
+import sys
+import tempfile
+import types
+import warnings
 from pathlib import Path
 import PyPDF2
 from docx import Document
@@ -139,6 +144,8 @@ def text_to_braille_liblouis(text, grade=1):
 
 # Braille to text mapping (reverse of BRAILLE_MAP)
 BRAILLE_TO_TEXT = {v: k for k, v in BRAILLE_MAP.items()}
+
+_SIMPLE_OCR_LEARNER = None
 
 
 def braille_to_text(braille_string):
@@ -547,21 +554,188 @@ def recognize_braille_cell(cell_dots):
     return '•', '?'
 
 
+def _resolve_simple_ocr_model_path():
+    local_model = Path(__file__).resolve().parent / "Model_Perkins_Brailler_acc9997"
+    if local_model.exists():
+        return local_model
+
+    project_root_model = (
+        Path(__file__).resolve().parents[2]
+        / "Braille-OCR-e-Braille-Tales"
+        / "Model_Perkins_Brailler_acc9997"
+    )
+    if project_root_model.exists():
+        return project_root_model
+
+    return local_model
+
+
+def _get_simple_ocr_learner():
+    global _SIMPLE_OCR_LEARNER
+    if _SIMPLE_OCR_LEARNER is not None:
+        return _SIMPLE_OCR_LEARNER
+
+    if sys.platform.startswith("win"):
+        pathlib.PosixPath = pathlib.WindowsPath
+
+    try:
+        __import__("torchvision.models.utils")
+    except ModuleNotFoundError:
+        import torch.hub
+
+        torchvision_models_utils = types.ModuleType("torchvision.models.utils")
+        torchvision_models_utils.load_state_dict_from_url = torch.hub.load_state_dict_from_url
+        sys.modules["torchvision.models.utils"] = torchvision_models_utils
+
+    from fastai.vision.all import load_learner
+
+    model_path = _resolve_simple_ocr_model_path()
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Simple OCR model not found: {model_path}. "
+            "Expected Model_Perkins_Brailler_acc9997 in braille_translator or Braille-OCR-e-Braille-Tales folder."
+        )
+
+    warnings.filterwarnings(
+        "ignore",
+        message="load_learner` uses Python's insecure pickle module",
+        category=UserWarning,
+    )
+
+    _SIMPLE_OCR_LEARNER = load_learner(model_path)
+    return _SIMPLE_OCR_LEARNER
+
+
+def _detect_lines_simple(gray, char_height=90, line_threshold=15, max_lines=19):
+    image_filtered = np.where(gray == 255, 0, 1)
+    y_sum = np.sum(image_filtered, axis=0)
+    img_height = gray.shape[1]
+
+    best_lines = []
+    best_cutoff = None
+
+    for cutoff in range(30, 300, 10):
+        y_pixels = np.where(y_sum > cutoff)[0]
+        lines = []
+        for idx in range(len(y_pixels) - 1):
+            if y_pixels[idx + 1] - y_pixels[idx] <= line_threshold:
+                continue
+
+            y_max = int(y_pixels[idx])
+            y_min = int(y_max - char_height)
+
+            if y_min <= 0 or y_max + char_height >= img_height:
+                continue
+            if lines and (y_min - lines[-1][0] < char_height):
+                continue
+
+            lines.append((y_min, y_max))
+
+        if len(lines) > max_lines:
+            continue
+
+        if len(lines) > len(best_lines):
+            best_lines = lines
+            best_cutoff = cutoff
+        elif len(lines) == len(best_lines) and best_cutoff is not None and cutoff < best_cutoff:
+            best_lines = lines
+            best_cutoff = cutoff
+
+    return best_lines
+
+
+def _crop_rectangles_for_page_simple(
+    text_image,
+    lines_y,
+    x_min=282,
+    char_width=60,
+    x_gap=12,
+    columns=41,
+    crop_margin=10,
+):
+    gray = cv2.cvtColor(text_image, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
+
+    page_crops = []
+
+    for y_min, y_max in reversed(lines_y):
+        current_x = x_min
+        for _ in range(columns):
+            x0 = current_x
+            x1 = current_x + char_width
+            current_x += char_width + x_gap
+
+            y0_crop = max(0, x0 - crop_margin)
+            y1_crop = min(h, x1 + crop_margin)
+            x0_crop = max(0, y_min - crop_margin)
+            x1_crop = min(w, y_max + crop_margin)
+
+            crop = gray[y0_crop:y1_crop, x0_crop:x1_crop]
+            page_crops.append(crop)
+
+    return page_crops
+
+
+def _labels_to_page_text_simple(labels, line_count, columns=41):
+    lines = []
+    idx = 0
+    for _ in range(line_count):
+        line_chars = labels[idx: idx + columns]
+        idx += columns
+        line_string = "".join(line_chars).rstrip("⠀")
+        lines.append(line_string)
+    return "\n".join(lines).strip("\n")
+
+
 def translate_braille_image(image_path):
     """
-    Main function to translate braille image to text
+    Main function to translate braille image to text using the simple_e_braille_tales pipeline.
     Returns: (braille_text, translated_text, processing_notes)
     """
     try:
-        # Check if image exists
         if not os.path.exists(image_path):
             return "", "", "Image file not found"
-        
-        # Detect braille in image
-        braille_text, regular_text, notes = detect_braille_dots(image_path)
-        
-        return braille_text, regular_text, notes
-        
+
+        text_image = cv2.imread(str(image_path))
+        if text_image is None:
+            return "", "", "Failed to read image file"
+
+        gray = cv2.cvtColor(text_image, cv2.COLOR_BGR2GRAY)
+        lines_y = _detect_lines_simple(gray=gray)
+        if not lines_y:
+            return "", "", "No braille lines detected in image"
+
+        crops = _crop_rectangles_for_page_simple(text_image=text_image, lines_y=lines_y)
+        if not crops:
+            return "", "", "No braille character crops produced"
+
+        learner = _get_simple_ocr_learner()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            char_files = []
+            for i, crop in enumerate(crops):
+                char_file = tmp_path / f"{i}.jpg"
+                cv2.imwrite(str(char_file), crop)
+                char_files.append(char_file)
+
+            dl = learner.dls.test_dl([str(p) for p in char_files], shuffle=False)
+            with learner.no_bar(), learner.no_logging():
+                preds = learner.get_preds(dl=dl)[0].softmax(dim=1)
+            preds_argmax = preds.argmax(dim=1).tolist()
+            labels = [learner.dls.vocab[preds_argmax[i]] for i in range(len(preds_argmax))]
+
+        labels = ["⠀" if label == "empty_braille_cell" else label for label in labels]
+        braille_text = _labels_to_page_text_simple(labels, line_count=len(lines_y), columns=41)
+        translated_text = braille_to_text(braille_text)
+
+        notes = [
+            "✓ OCR engine: simple_e_braille_tales model pipeline",
+            f"✓ Detected lines: {len(lines_y)}",
+            f"✓ Character crops classified: {len(crops)}",
+        ]
+        return braille_text, translated_text, "\n".join(notes)
+
     except Exception as e:
-        return "", "", f"Error translating braille image: {str(e)}"
+        return "", "", f"Error translating braille image with simple OCR model: {str(e)}"
 

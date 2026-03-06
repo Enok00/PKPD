@@ -10,6 +10,16 @@ Pillow>=10.0.0
 opencv-python>=4.8.0
 numpy>=1.24.0
 
+# Model-based braille OCR (simple_e_braille_tales)
+torch==2.6.0
+torchvision==0.21.0
+torchaudio==2.6.0
+fastai==2.7.19
+fastcore==1.7.29
+
+# Optional: Google Cloud Vision OCR
+google-cloud-vision>=3.7.2
+
 # Braille translation (optional but recommended)
 # liblouis provides more accurate Grade 2 Braille translation
 # Install with: pip install python-liblouis
