@@ -2,8 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.http import HttpResponse
 from .models import Document, BrailleImage
-from .utils import (extract_text_from_file, text_to_braille, text_to_braille_liblouis,
-                    translate_braille_image as process_braille_image)
+from .utils import extract_text_from_file, text_to_braille
+from .braille_image_to_text import braille_image_to_text as process_braille_image
 from .forms import DocumentUploadForm, BrailleImageUploadForm
 import os
 
@@ -51,8 +51,7 @@ def translate_document(request, pk):
         document.original_text = text
         
         # Translate to Braille
-        # Try using liblouis first (Grade 2), fallback to basic translation
-        document.braille_text = text_to_braille_liblouis(text, grade=1)
+        document.braille_text = text_to_braille(text)
         
         document.is_translated = True
         document.save()
@@ -134,7 +133,8 @@ def translate_braille_image(request, pk):
     if not braille_image.is_processed:
         # Process the braille image
         image_path = braille_image.image.path
-        braille_text, translated_text, notes = process_braille_image(image_path)
+        braille_text, translated_text = process_braille_image(image_path)
+        notes = "Processed with YOLO braille_image_to_text pipeline."
         
         # Save results
         braille_image.braille_text = braille_text
