@@ -2,8 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.http import HttpResponse
 from .models import Document, BrailleImage
-from .utils import extract_text_from_file, text_to_braille
-from .braille_image_to_text import braille_image_to_text as process_braille_image
+from .util.utils import extract_text_from_file, text_to_braille
+from .util.braille_image_to_text import braille_image_to_text as process_braille_image
 from .forms import DocumentUploadForm, BrailleImageUploadForm
 import os
 
