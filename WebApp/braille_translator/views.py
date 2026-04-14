@@ -134,12 +134,10 @@ def translate_braille_image(request, pk):
         # Process the braille image
         image_path = braille_image.image.path
         braille_text, translated_text = process_braille_image(image_path)
-        notes = "Processed with YOLO braille_image_to_text pipeline."
         
         # Save results
         braille_image.braille_text = braille_text
         braille_image.translated_text = translated_text
-        braille_image.processing_notes = notes
         braille_image.is_processed = True
         braille_image.save()
         

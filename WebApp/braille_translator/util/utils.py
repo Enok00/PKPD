@@ -62,7 +62,7 @@ def extract_text_from_file(file_path):
         return None, f"Error processing file: {str(e)}"
 
 
-# Braille Unicode mapping (Grade 1 Braille)
+# Braille mapping (Grade 1 Braille)
 BRAILLE_MAP = {
     'a': '⠁', 'b': '⠃', 'c': '⠉', 'd': '⠙', 'e': '⠑',
     'f': '⠋', 'g': '⠛', 'h': '⠓', 'i': '⠊', 'j': '⠚',
@@ -85,11 +85,6 @@ BRAILLE_MAP = {
 
 
 def text_to_braille(text):
-    """
-    Convert regular text to Braille Unicode characters (Grade 1 Braille)
-    This is a basic implementation. For more advanced Grade 2 Braille,
-    consider using the 'louis' library (liblouis)
-    """
     if not text:
         return ""
     

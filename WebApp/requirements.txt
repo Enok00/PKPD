@@ -17,11 +17,3 @@ torchaudio==2.6.0
 fastai==2.7.19
 fastcore==1.7.29
 ultralytics==8.3.112
-
-# Optional: Google Cloud Vision OCR
-google-cloud-vision>=3.7.2
-
-# Braille translation (optional but recommended)
-# liblouis provides more accurate Grade 2 Braille translation
-# Install with: pip install python-liblouis
-# Note: May require additional system libraries on some platforms

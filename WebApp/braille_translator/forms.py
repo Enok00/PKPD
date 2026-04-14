@@ -31,12 +31,7 @@ class DocumentUploadForm(forms.ModelForm):
             if file_extension not in allowed_extensions:
                 raise forms.ValidationError(
                     f'Unsupported file type. Please upload: {", ".join(allowed_extensions)}'
-                )
-            
-            # Check file size (limit to 10MB)
-            if document.size > 10 * 1024 * 1024:
-                raise forms.ValidationError('File size must be under 10MB')
-        
+                )  
         return document
 
 
@@ -70,10 +65,5 @@ class BrailleImageUploadForm(forms.ModelForm):
                 raise forms.ValidationError(
                     f'Unsupported image type. Please upload: {", ".join(allowed_extensions)}'
                 )
-            
-            # Check file size (limit to 15MB)
-            if image.size > 15 * 1024 * 1024:
-                raise forms.ValidationError('Image size must be under 15MB')
-        
         return image
 

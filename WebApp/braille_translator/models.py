@@ -2,9 +2,7 @@ from django.db import models
 from django.utils import timezone
 
 
-class Document(models.Model):
-    """Model to store uploaded documents for Braille translation"""
-    
+class Document(models.Model):    
     DOCUMENT_TYPES = [
         ('txt', 'Text File'),
         ('pdf', 'PDF Document'),
@@ -16,17 +14,11 @@ class Document(models.Model):
     document_type = models.CharField(max_length=10, choices=DOCUMENT_TYPES)
     uploaded_at = models.DateTimeField(default=timezone.now)
     
-    # Original text content
     original_text = models.TextField(blank=True)
     
-    # Braille translation
     braille_text = models.TextField(blank=True)
     
-    # Translation status
     is_translated = models.BooleanField(default=False)
-    
-    class Meta:
-        ordering = ['-uploaded_at']
     
     def __str__(self):
         return f"{self.title} - {self.uploaded_at.strftime('%Y-%m-%d %H:%M')}"
@@ -36,9 +28,7 @@ class Document(models.Model):
         return self.document.name.split('.')[-1].lower()
 
 
-class BrailleImage(models.Model):
-    """Model to store uploaded braille images for OCR translation"""
-    
+class BrailleImage(models.Model):    
     title = models.CharField(max_length=255)
     image = models.ImageField(upload_to='braille_images/')
     uploaded_at = models.DateTimeField(default=timezone.now)
@@ -51,10 +41,7 @@ class BrailleImage(models.Model):
     
     # Translation status
     is_processed = models.BooleanField(default=False)
-    
-    # Processing notes/errors
-    processing_notes = models.TextField(blank=True)
-    
+        
     class Meta:
         ordering = ['-uploaded_at']
     

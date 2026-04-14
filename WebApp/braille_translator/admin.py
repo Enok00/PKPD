@@ -31,7 +31,7 @@ class BrailleImageAdmin(admin.ModelAdmin):
             'fields': ('title', 'image', 'uploaded_at')
         }),
         ('OCR Results', {
-            'fields': ('braille_text', 'translated_text', 'is_processed', 'processing_notes')
+            'fields': ('braille_text', 'translated_text', 'is_processed')
         }),
     )
 
