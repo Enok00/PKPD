@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.http import HttpResponse
 from .models import Document, BrailleImage
-from .util.utils import extract_text_from_file, text_to_braille
+from .util.utils import extract_text_from_file, text_to_braille, camera_image_to_content_file
 from .util.braille_image_to_text import braille_image_to_text as process_braille_image
 from .forms import DocumentUploadForm, BrailleImageUploadForm
 import os
@@ -124,6 +124,30 @@ def braille_image_upload(request):
         'images': images,
     }
     return render(request, 'braille_translator/image_upload.html', context)
+
+
+def camera_capture(request):
+    """Capture a photo from the camera and save it as a braille image."""
+    images = BrailleImage.objects.all()
+
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip() or 'Camera Capture'
+        image_data = request.POST.get('camera_image')
+        image_file, error = camera_image_to_content_file(image_data, title)
+
+        if error:
+            messages.error(request, error)
+        else:
+            braille_image = BrailleImage(title=title)
+            braille_image.image.save(image_file.name, image_file, save=False)
+            braille_image.save()
+            messages.success(request, f'Camera image "{braille_image.title}" captured successfully!')
+            return redirect('translate_braille_image', pk=braille_image.pk)
+
+    context = {
+        'images': images,
+    }
+    return render(request, 'braille_translator/camera_capture.html', context)
 
 
 def translate_braille_image(request, pk):

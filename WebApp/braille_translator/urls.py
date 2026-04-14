@@ -10,6 +10,7 @@ urlpatterns = [
     
     # Braille image routes
     path('braille-image/', views.braille_image_upload, name='braille_image_upload'),
+    path('camera-capture/', views.camera_capture, name='camera_capture'),
     path('braille-image/<int:pk>/translate/', views.translate_braille_image, name='translate_braille_image'),
     path('braille-image/<int:pk>/', views.braille_image_detail, name='braille_image_detail'),
     path('braille-image/<int:pk>/delete/', views.delete_braille_image, name='delete_braille_image'),

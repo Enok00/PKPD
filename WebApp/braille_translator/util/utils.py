@@ -2,9 +2,15 @@
 Utility functions for extracting text from various document formats
 and translating to Braille
 """
+import base64
+import binascii
 from pathlib import Path
+from uuid import uuid4
+
 import PyPDF2
 from docx import Document
+from django.core.files.base import ContentFile
+from django.utils.text import slugify
 
 
 def extract_text_from_txt(file_path):
@@ -60,6 +66,33 @@ def extract_text_from_file(file_path):
             return None, f"Unsupported file format: {file_extension}"
     except Exception as e:
         return None, f"Error processing file: {str(e)}"
+
+
+def camera_image_to_content_file(image_data, title):
+    """Convert a browser camera data URL into a Django ContentFile."""
+    if not image_data:
+        return None, "No camera image was captured."
+
+    if "," not in image_data:
+        return None, "Invalid camera image data."
+
+    header, encoded_image = image_data.split(",", 1)
+
+    if "image/" not in header or ";base64" not in header:
+        return None, "Unsupported camera image format."
+
+    image_format = header.split("image/")[-1].split(";")[0].lower()
+    if image_format == "jpeg":
+        image_format = "jpg"
+
+    try:
+        decoded_image = base64.b64decode(encoded_image)
+    except (ValueError, binascii.Error):
+        return None, "Could not decode the captured image."
+
+    file_stem = slugify(title or "camera-capture") or "camera-capture"
+    file_name = f"{file_stem}-{uuid4().hex}.{image_format}"
+    return ContentFile(decoded_image, name=file_name), None
 
 
 # Braille mapping (Grade 1 Braille)

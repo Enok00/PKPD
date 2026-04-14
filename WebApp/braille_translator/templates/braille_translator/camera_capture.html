@@ -1,0 +1,235 @@
+{% extends 'braille_translator/base.html' %}
+
+{% block title %}Camera Capture - Braille Translator{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card shadow">
+            <div class="card-header bg-dark text-white">
+                <h4 class="mb-0">Capture From Camera</h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Open your camera, take a photo, and save it for Braille OCR.</p>
+
+                <div class="mb-3">
+                    <label for="cameraSelect" class="form-label">Choose Camera</label>
+                    <select id="cameraSelect" class="form-select">
+                        <option value="">Default camera</option>
+                    </select>
+                    <div class="form-text">Available cameras appear after you grant browser permission.</div>
+                </div>
+
+                <div class="ratio ratio-4x3 bg-black rounded overflow-hidden mb-3">
+                    <video id="cameraFeed" autoplay playsinline class="w-100 h-100 object-fit-cover"></video>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <button type="button" class="btn btn-dark" id="startCameraBtn">Start Camera</button>
+                    <button type="button" class="btn btn-outline-dark" id="captureBtn" disabled>Capture Photo</button>
+                    <button type="button" class="btn btn-outline-secondary" id="retakeBtn" disabled>Retake</button>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Photo Title</label>
+                        <input type="text" class="form-control" id="title" name="title" value="Camera Capture" placeholder="Enter a title for this photo">
+                    </div>
+
+                    <input type="hidden" id="camera_image" name="camera_image">
+
+                    <div class="mb-3">
+                        <label class="form-label">Captured Preview</label>
+                        <div class="border rounded p-2 bg-light text-center">
+                            <img id="capturePreview" class="img-fluid d-none" alt="Captured photo preview">
+                            <p id="previewPlaceholder" class="text-muted mb-0 py-5">No photo captured yet.</p>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg w-100" id="saveBtn" disabled>
+                        Save Photo and Process
+                    </button>
+                </form>
+
+                <p class="text-muted small mt-3 mb-0" id="cameraStatus">Camera is off.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0">Recent Camera Photos</h4>
+            </div>
+            <div class="card-body">
+                {% if images %}
+                    <div class="list-group">
+                        {% for img in images %}
+                            <a href="{% url 'braille_image_detail' img.pk %}" class="list-group-item list-group-item-action document-card">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">{{ img.title }}</h6>
+                                    <small class="text-muted">{{ img.uploaded_at|date:"M d, Y" }}</small>
+                                </div>
+                                <p class="mb-1">
+                                    <span class="badge bg-dark">CAMERA</span>
+                                    {% if img.is_processed %}
+                                        <span class="badge bg-success">Processed</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% endif %}
+                                </p>
+                            </a>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted text-center py-4">No camera photos captured yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const videoElement = document.getElementById('cameraFeed');
+    const cameraSelect = document.getElementById('cameraSelect');
+    const startCameraButton = document.getElementById('startCameraBtn');
+    const captureButton = document.getElementById('captureBtn');
+    const retakeButton = document.getElementById('retakeBtn');
+    const saveButton = document.getElementById('saveBtn');
+    const cameraImageInput = document.getElementById('camera_image');
+    const capturePreview = document.getElementById('capturePreview');
+    const previewPlaceholder = document.getElementById('previewPlaceholder');
+    const cameraStatus = document.getElementById('cameraStatus');
+    const canvas = document.createElement('canvas');
+
+    let mediaStream = null;
+
+    function setStatus(message) {
+        cameraStatus.textContent = message;
+    }
+
+    function stopCamera() {
+        if (!mediaStream) {
+            return;
+        }
+
+        mediaStream.getTracks().forEach((track) => track.stop());
+        mediaStream = null;
+        videoElement.srcObject = null;
+    }
+
+    function setCaptureState(hasPhoto) {
+        saveButton.disabled = !hasPhoto;
+        retakeButton.disabled = !hasPhoto;
+        captureButton.disabled = !mediaStream;
+
+        if (!hasPhoto) {
+            cameraImageInput.value = '';
+            capturePreview.classList.add('d-none');
+            previewPlaceholder.classList.remove('d-none');
+        }
+    }
+
+    function showCapturedPhoto(imageData) {
+        cameraImageInput.value = imageData;
+        capturePreview.src = imageData;
+        capturePreview.classList.remove('d-none');
+        previewPlaceholder.classList.add('d-none');
+        setCaptureState(true);
+    }
+
+    function readFrameFromVideo() {
+        canvas.width = videoElement.videoWidth || 1280;
+        canvas.height = videoElement.videoHeight || 720;
+
+        const context = canvas.getContext('2d');
+        context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+        return canvas.toDataURL('image/png');
+    }
+
+    async function refreshCameraList(selectedDeviceId = '') {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            return;
+        }
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter((device) => device.kind === 'videoinput');
+
+        cameraSelect.innerHTML = '<option value="">Default camera</option>';
+
+        videoDevices.forEach((device, index) => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.textContent = device.label || `Camera ${index + 1}`;
+            cameraSelect.appendChild(option);
+        });
+
+        cameraSelect.value = selectedDeviceId;
+    }
+
+    async function startCamera(deviceId = '') {
+        try {
+            stopCamera();
+
+            let videoConstraints;
+            if (deviceId) {
+                videoConstraints = { deviceId: { exact: deviceId } };
+            } else {
+                videoConstraints = { facingMode: 'environment' };
+            }
+
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: videoConstraints,
+                audio: false,
+            });
+
+            videoElement.srcObject = mediaStream;
+            setCaptureState(false);
+            setStatus(deviceId ? 'Camera is ready. You are using the selected camera.' : 'Camera is ready. Take a photo when you are ready.');
+
+            await refreshCameraList(deviceId);
+        } catch (error) {
+            setStatus('Unable to access the camera. Make sure camera permissions are enabled.');
+            captureButton.disabled = true;
+        }
+    }
+
+    function capturePhoto() {
+        if (!mediaStream) {
+            setStatus('Start the camera first.');
+            return;
+        }
+
+        showCapturedPhoto(readFrameFromVideo());
+        setStatus('Photo captured. You can save it now or retake it.');
+    }
+
+    function resetPhoto() {
+        setCaptureState(false);
+        setStatus('Ready for another photo.');
+    }
+
+    startCameraButton.addEventListener('click', () => {
+        startCamera(cameraSelect.value);
+    });
+
+    cameraSelect.addEventListener('change', () => {
+        startCamera(cameraSelect.value);
+    });
+
+    captureButton.addEventListener('click', capturePhoto);
+    retakeButton.addEventListener('click', resetPhoto);
+
+    if (navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function') {
+        navigator.mediaDevices.addEventListener('devicechange', () => refreshCameraList(cameraSelect.value));
+    }
+
+    window.addEventListener('beforeunload', stopCamera);
+
+    setCaptureState(false);
+})();
+</script>
+{% endblock %}
